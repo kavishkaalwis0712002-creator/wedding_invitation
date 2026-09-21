@@ -433,6 +433,10 @@
   ============================================================= */
   const CONFIG = {
     coupleInitials: "NP",
+    // Paste your Google Apps Script "Web app" URL here to save RSVPs into
+    // a Google Sheet. Leave as "" to just log responses to the console.
+    // See the setup steps shared with this file for how to get this URL.
+    googleSheetWebAppURL: "https://script.google.com/macros/s/AKfycbzqyfB1SPgkyNb_xCdIMXQxUUytMcwI9QTRuoCwLBPgP_c3FjKgqxb4np2vLdA-B5u30A/exec",
     weddingDateISO: "2027-03-11T16:30:00", // local time, used for countdown + calendar
     weddingDateDurationHours: 5,
     heroDateLabel: "Thursday, the 11th of March, 2027",
@@ -686,18 +690,43 @@
       return;
     }
 
-    // ---- No backend is wired up yet. Replace this block with a fetch()
-    // call to your own RSVP endpoint / Google Form / Sheet-backed API.
-    const payload = { name: name, attending: attending, guests: guests, message: message };
-    console.log("RSVP submitted:", payload);
+    const payload = { name: name, attending: attending, guests: guests, message: message, submittedAt: new Date().toISOString() };
 
-    rsvpForm.classList.add("hidden");
-    rsvpSuccess.classList.remove("hidden");
-    document.getElementById("success-name").textContent = name;
-    document.getElementById("success-message").textContent =
-      attending === "yes"
-        ? "We're overjoyed you'll be there to celebrate with us."
-        : "You'll be dearly missed — thank you for letting us know.";
+    function showSuccess() {
+      rsvpForm.classList.add("hidden");
+      rsvpSuccess.classList.remove("hidden");
+      document.getElementById("success-name").textContent = name;
+      document.getElementById("success-message").textContent =
+        attending === "yes"
+          ? "We're overjoyed you'll be there to celebrate with us."
+          : "You'll be dearly missed — thank you for letting us know.";
+    }
+
+    // If CONFIG.googleSheetWebAppURL is set (see setup instructions),
+    // send the response straight into your Google Sheet.
+    if (CONFIG.googleSheetWebAppURL) {
+      const submitBtn = rsvpForm.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending...";
+
+      fetch(CONFIG.googleSheetWebAppURL, {
+        method: "POST",
+        mode: "no-cors", // Apps Script web apps don't return CORS headers; we can't read the response, so we assume success.
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload),
+      })
+        .then(showSuccess)
+        .catch(function () {
+          rsvpError.textContent = "Something went wrong sending your response. Please try again.";
+          rsvpError.classList.remove("hidden");
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Send my response";
+        });
+    } else {
+      // No Sheet connected yet — logs locally so you can still test the form.
+      console.log("RSVP submitted (not yet saved anywhere):", payload);
+      showSuccess();
+    }
   });
 
   /* ============================================================
